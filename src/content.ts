@@ -30,6 +30,12 @@ document.addEventListener('keydown', async (event) => {
   }
   lastInputTime = Date.now();
 
+  // IME入力中は処理しない
+  if (event.isComposing) {
+    console.log('CopyX: IME composing. Ignoring keydown.');
+    return;
+  }
+
   // Handle Backspace
   if (event.key === 'Backspace') {
     typedBuffer = typedBuffer.slice(0, -1);
@@ -59,7 +65,7 @@ document.addEventListener('keydown', async (event) => {
         if (typedBuffer.endsWith(snippet.shortcut)) {
           console.log('CopyX: Snippet match found!', snippet.shortcut);
           event.preventDefault(); // Prevent default keydown behavior
-          await replaceText(target, snippet);
+          await replaceText(target, snippet, typedBuffer); // typedBuffer を渡す
           typedBuffer = ''; // Reset buffer after expansion
           console.log('CopyX: Snippet replaced. Buffer reset.');
           break;
@@ -69,8 +75,8 @@ document.addEventListener('keydown', async (event) => {
   });
 });
 
-async function replaceText(inputElement: HTMLElement, snippet: any) {
-  console.log('CopyX: replaceText called with:', inputElement, snippet);
+async function replaceText(inputElement: HTMLElement, snippet: any, typedBuffer: string) {
+  console.log('CopyX: replaceText called with:', inputElement, snippet, 'typedBuffer:', typedBuffer);
   let currentText = '';
   let selectionStart = 0;
   let selectionEnd = 0;
@@ -91,10 +97,34 @@ async function replaceText(inputElement: HTMLElement, snippet: any) {
   console.log('CopyX: Current text before replacement:', currentText);
 
   // Remove the typed shortcut from the current text
-  const textBeforeShortcut = currentText.slice(0, selectionEnd - snippet.shortcut.length);
+  // Calculate the start of the shortcut within the current text based on typedBuffer
+  const shortcutStartIndexInTypedBuffer = typedBuffer.length - snippet.shortcut.length;
+  const actualShortcutStart = selectionEnd - (typedBuffer.length - shortcutStartIndexInTypedBuffer);
+
+  const textBeforeShortcut = currentText.slice(0, actualShortcutStart);
   const textAfterShortcut = currentText.slice(selectionEnd);
 
   let snippetText = snippet.snippet;
+  console.log('CopyX: Original snippet text:', snippetText);
+
+  const now = new Date();
+  console.log('CopyX: Current time for placeholders:', now.toLocaleString());
+
+  if (snippetText.includes('${date}')) {
+    console.log('CopyX: Before date replacement:', snippetText);
+    snippetText = snippetText.replace(/\${date}/g, now.toLocaleDateString());
+    console.log('CopyX: After date replacement:', snippetText);
+  }
+  if (snippetText.includes('${time}')) {
+    console.log('CopyX: Before time replacement:', snippetText);
+    snippetText = snippetText.replace(/\${time}/g, now.toLocaleTimeString());
+    console.log('CopyX: After time replacement:', snippetText);
+  }
+  if (snippetText.includes('${datetime}')) {
+    console.log('CopyX: Before datetime replacement:', snippetText);
+    snippetText = snippetText.replace(/\${datetime}/g, now.toLocaleString());
+    console.log('CopyX: After datetime replacement:', snippetText);
+  }
 
   if (snippetText.includes('${clipboard}')) {
     try {
@@ -110,6 +140,7 @@ async function replaceText(inputElement: HTMLElement, snippet: any) {
   snippetText = snippetText.replace('${cursor}', '');
 
   const newText = textBeforeShortcut + snippetText + textAfterShortcut;
+  console.log('CopyX: Final snippet text to insert:', snippetText);
   console.log('CopyX: New text after replacement:', newText);
 
   if (inputElement instanceof HTMLInputElement || inputElement instanceof HTMLTextAreaElement) {
