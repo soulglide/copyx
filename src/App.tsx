@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, ChangeEvent, useMemo } from 'react'
 import './App.css';
 
 interface Snippet {
+  id: string; // Add unique ID
   shortcut: string;
   snippet: string;
   label: string;
@@ -16,7 +17,7 @@ const App: React.FC = () => {
   const snippetTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // State for inline editing
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null); // Change to editingId
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
 
   // State for search
@@ -30,11 +31,12 @@ const App: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'none'>('none'); // 'none' for default/no sorting, 'asc' for oldest first, 'desc' for newest first
 
   useEffect(() => {
-    chrome.storage.sync.get('snippets', (data) => {
+    chrome.storage.local.get('snippets', (data) => {
       if (data.snippets && Array.isArray(data.snippets)) {
-        // Ensure all snippets have a timestamp for sorting
+        // Ensure all snippets have a timestamp and ID
         const loadedSnippets = data.snippets.map((s: Snippet) => ({
           ...s,
+          id: s.id || crypto.randomUUID(), // Assign new ID if missing
           timestamp: s.timestamp || Date.now() // Assign current timestamp if missing
         }));
         setSnippets(loadedSnippets);
@@ -50,7 +52,7 @@ const App: React.FC = () => {
   };
 
   const updateSnippets = (updatedSnippets: Snippet[], message: string) => {
-    chrome.storage.sync.set({ snippets: updatedSnippets }, () => {
+    chrome.storage.local.set({ snippets: updatedSnippets }, () => {
       setSnippets(updatedSnippets);
       showFeedback(message);
     });
@@ -61,34 +63,42 @@ const App: React.FC = () => {
       alert('ショートカットとスニペットは空にできません。');
       return;
     }
-    const newSnippets: Snippet[] = [...snippets, { shortcut: newShortcut, snippet: newSnippet, label: newLabel, timestamp: Date.now() }];
+
+    // Check for duplicate shortcuts
+    if (snippets.some(snippet => snippet.shortcut === newShortcut.trim())) {
+      alert('このショートカットは既に登録済みです。');
+      return;
+    }
+
+    const newSnippets: Snippet[] = [...snippets, { id: crypto.randomUUID(), shortcut: newShortcut.trim(), snippet: newSnippet, label: newLabel.trim(), timestamp: Date.now() }];
     updateSnippets(newSnippets, 'スニペットが追加されました！');
     setNewShortcut('');
     setNewSnippet('');
     setNewLabel('');
   };
 
-  const deleteSnippet = (index: number): void => {
+  const deleteSnippet = (idToDelete: string): void => { // Change to idToDelete
     if (window.confirm('このスニペットを削除してもよろしいですか？')) {
-      const newSnippets = snippets.filter((_, i) => i !== index);
+      const newSnippets = snippets.filter(snippet => snippet.id !== idToDelete); // Filter by id
       updateSnippets(newSnippets, 'スニペットが削除されました。');
     }
   };
 
-  const startEditing = (index: number, snippet: Snippet) => {
-    setEditingIndex(index);
+  const startEditing = (snippet: Snippet) => { // Change to snippet directly
+    setEditingId(snippet.id); // Set editingId
     setEditingSnippet({ ...snippet });
   };
 
   const cancelEditing = () => {
-    setEditingIndex(null);
+    setEditingId(null);
     setEditingSnippet(null);
   };
 
-  const saveEditing = (index: number) => {
-    if (editingSnippet) {
-      const updatedSnippets = [...snippets];
-      updatedSnippets[index] = editingSnippet;
+  const saveEditing = () => { // No index needed
+    if (editingSnippet && editingId) {
+      const updatedSnippets = snippets.map(s =>
+        s.id === editingId ? editingSnippet : s // Find by id and update
+      );
       updateSnippets(updatedSnippets, 'スニペットが更新されました！');
       cancelEditing();
     }
@@ -177,7 +187,9 @@ const App: React.FC = () => {
         try {
           const importedData: Snippet[] = JSON.parse(e.target?.result as string);
           if (Array.isArray(importedData) && importedData.every(s => s.shortcut && s.snippet)) {
-            updateSnippets(importedData, 'スニペットがインポートされました！');
+            // Ensure imported snippets have IDs
+            const snippetsWithIds = importedData.map(s => ({ ...s, id: s.id || crypto.randomUUID() }));
+            updateSnippets(snippetsWithIds, 'スニペットがインポートされました！');
           } else {
             alert('無効なファイル形式です。JSONファイルにはショートカットとスニペットのプロパティが必要です。');
           }
@@ -192,7 +204,10 @@ const App: React.FC = () => {
 
   return (
     <div className="container">
-      <h1>CopyX Snippet Manager</h1>
+      <div className="title-container">
+        <h1>CopyX Snippet Manager</h1>
+        <img src="/icon.jpg" alt="CopyX Icon" className="app-icon" />
+      </div>
       {feedbackMessage && <div className="feedback-message">{feedbackMessage}</div>}
       <div className="form-container">
         <div className="form-top-row">
@@ -239,6 +254,7 @@ const App: React.FC = () => {
             rows={6}
           />
         </div>
+        <p className="shortcut-hint">enterキーを押すとスニペットが実行されます</p>
         <button className="add-button" onClick={addSnippet}>Add Snippet</button>
       </div>
 
@@ -272,6 +288,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="utility-buttons">
+        <span className="snippet-count">Total Snippets: {snippets.length}</span>
         <button onClick={handleExport}>Export Snippets</button>
         <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} id="import-file" />
         <label htmlFor="import-file" className="button">Import Snippets</label>
@@ -288,15 +305,15 @@ const App: React.FC = () => {
         </thead>
         <tbody>
           {sortedAndFilteredSnippets.length > 0 ? (
-            sortedAndFilteredSnippets.map((snippet, index) => (
-              <tr key={index}>
-                {editingIndex === index ? (
+            sortedAndFilteredSnippets.map((snippet) => (
+              <tr key={snippet.id}> {/* Use snippet.id as key */}
+                {editingId === snippet.id ? (
                   <>
                     <td><input type="text" name="label" value={editingSnippet?.label} onChange={handleEditChange} /></td>
                     <td><input type="text" name="shortcut" value={editingSnippet?.shortcut} onChange={handleEditChange} /></td>
                     <td><textarea name="snippet" value={editingSnippet?.snippet} onChange={handleEditChange} rows={4} /></td>
                     <td className="col-action">
-                      <button className="action-button save-button" onClick={() => saveEditing(index)}>Save</button>
+                      <button className="action-button save-button" onClick={() => saveEditing()}>Save</button>
                       <button className="action-button cancel-button" onClick={cancelEditing}>Cancel</button>
                     </td>
                   </>
@@ -306,8 +323,8 @@ const App: React.FC = () => {
                     <td>{snippet.shortcut}</td>
                     <td className="snippet-content">{snippet.snippet}</td>
                     <td className="col-action">
-                      <button className="action-button edit-button" onClick={() => startEditing(index, snippet)}>Edit</button>
-                      <button className="action-button delete-button" onClick={() => deleteSnippet(index)}>Delete</button>
+                      <button className="action-button edit-button" onClick={() => startEditing(snippet)}>Edit</button>
+                      <button className="action-button delete-button" onClick={() => deleteSnippet(snippet.id)}>Delete</button>
                     </td>
                   </>
                 )}

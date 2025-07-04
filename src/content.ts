@@ -1,8 +1,30 @@
 let typedBuffer = '';
 let lastInputTime = Date.now();
-const DEBOUNCE_TIME = 1000; // milliseconds (increased debounce time)
+const DEBOUNCE_TIME = 1000; // milliseconds
+let snippetsCache: any[] = [];
 
 console.log('CopyX: content.ts loaded.');
+
+// Function to load snippets into the cache
+const loadSnippets = () => {
+  chrome.storage.local.get('snippets', (data) => {
+    if (data.snippets) {
+      snippetsCache = data.snippets;
+      console.log('CopyX: Snippets loaded into cache.', snippetsCache);
+    }
+  });
+};
+
+// Load snippets initially
+loadSnippets();
+
+// Listen for changes in storage and reload the cache
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.snippets) {
+    console.log('CopyX: Snippets have changed, reloading cache.');
+    loadSnippets();
+  }
+});
 
 document.addEventListener('keydown', async (event) => {
   console.log('CopyX: Keydown event detected.', event.key, 'Code:', event.code);
@@ -23,8 +45,11 @@ document.addEventListener('keydown', async (event) => {
     return;
   }
 
+  const isSeparatorKey = (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab');
+
   // Reset buffer if typing is too slow (user paused typing)
-  if (Date.now() - lastInputTime > DEBOUNCE_TIME) {
+  // But don't reset if the key is a separator, to allow expansion after a pause
+  if (Date.now() - lastInputTime > DEBOUNCE_TIME && !isSeparatorKey) {
     typedBuffer = '';
     console.log('CopyX: Debounce time exceeded. Buffer reset.');
   }
@@ -36,43 +61,41 @@ document.addEventListener('keydown', async (event) => {
     return;
   }
 
+  // On separator key, check for snippet expansion
+  if (isSeparatorKey) {
+    if (typedBuffer.length === 0) {
+      // Nothing in the buffer, so just let the separator key do its default action
+      return;
+    }
+
+    // There is something in the buffer, so we might have a match.
+    event.preventDefault();
+    const bestMatch = snippetsCache.find((s: any) => s.shortcut === typedBuffer);
+
+    if (bestMatch) {
+      await replaceText(target, bestMatch, typedBuffer);
+    }
+    // Whether there was a match or not, the buffer should be reset
+    // because a separator key was pressed, ending the current input sequence.
+    typedBuffer = '';
+    console.log('CopyX: Separator processed, buffer reset.');
+    return; // Stop further processing
+  }
+
   // Handle Backspace
   if (event.key === 'Backspace') {
-    typedBuffer = typedBuffer.slice(0, -1);
+    typedBuffer = typedBuffer.slice(0, -1); // slice on empty string is fine
     console.log('CopyX: Backspace. Buffer:', typedBuffer);
-  }
-  // Handle Space, Enter, Tab, etc. as word separators or end of input
-  else if (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab') {
-    typedBuffer = ''; // Reset buffer for these keys
-    console.log('CopyX: Separator key. Buffer reset.');
-    return; // Don't append these keys to buffer
   }
   // Append printable characters
   else if (event.key.length === 1) {
     typedBuffer += event.key;
     console.log('CopyX: Appended to buffer:', typedBuffer);
   }
-  // For other non-character keys (e.g., Arrow keys, Function keys), do not append but also do not reset buffer
+  // For other non-character keys (e.g., Arrow keys), do nothing.
   else {
     console.log('CopyX: Other non-character key. Not appending to buffer.');
-    return;
   }
-
-  chrome.storage.sync.get('snippets', async (data) => {
-    console.log('CopyX: Fetched snippets from storage:', data.snippets);
-    if (data.snippets) {
-      for (const snippet of data.snippets) {
-        if (typedBuffer.endsWith(snippet.shortcut)) {
-          console.log('CopyX: Snippet match found!', snippet.shortcut);
-          event.preventDefault(); // Prevent default keydown behavior
-          await replaceText(target, snippet, typedBuffer); // typedBuffer を渡す
-          typedBuffer = ''; // Reset buffer after expansion
-          console.log('CopyX: Snippet replaced. Buffer reset.');
-          break;
-        }
-      }
-    }
-  });
 });
 
 async function replaceText(inputElement: HTMLElement, snippet: any, typedBuffer: string) {
