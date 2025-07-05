@@ -206,7 +206,7 @@ const App: React.FC = () => {
     <div className="container">
       <div className="title-container">
         <h1>CopyX Snippet Manager</h1>
-        <img src="/icon.jpg" alt="CopyX Icon" className="app-icon" />
+        <img src="/icon.png" alt="CopyX Icon" className="app-icon" />
       </div>
       {feedbackMessage && <div className="feedback-message">{feedbackMessage}</div>}
       <div className="form-container">
