@@ -32,7 +32,7 @@ const App: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'none'>('none'); // 'none' for default/no sorting, 'asc' for oldest first, 'desc' for newest first
 
   useEffect(() => {
-    chrome.storage.local.get('snippets', (data) => {
+    browser.storage.local.get('snippets', (data) => {
       if (data.snippets && Array.isArray(data.snippets)) {
         // Ensure all snippets have a timestamp and ID
         const loadedSnippets = data.snippets.map((s: Snippet) => ({
@@ -53,7 +53,7 @@ const App: React.FC = () => {
   };
 
   const updateSnippets = (updatedSnippets: Snippet[], message: string) => {
-    chrome.storage.local.set({ snippets: updatedSnippets }, () => {
+    browser.storage.local.set({ snippets: updatedSnippets }, () => {
       setSnippets(updatedSnippets);
       showFeedback(message);
     });

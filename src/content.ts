@@ -7,7 +7,7 @@ console.log('CopyX: content.ts loaded. Version 2.0');
 
 // Function to load snippets into the cache
 const loadSnippets = () => {
-  chrome.storage.local.get('snippets', (data) => {
+  browser.storage.local.get('snippets', (data) => {
     if (data.snippets) {
       snippetsCache = data.snippets;
       console.log('CopyX: Snippets loaded into cache.', snippetsCache);
@@ -19,7 +19,7 @@ const loadSnippets = () => {
 loadSnippets();
 
 // Listen for changes in storage and reload the cache
-chrome.storage.onChanged.addListener((changes, namespace) => {
+browser.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.snippets) {
     console.log('CopyX: Snippets have changed, reloading cache.');
     loadSnippets();

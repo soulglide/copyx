@@ -10,6 +10,10 @@ export default defineConfig({
         {
           src: 'public/*',
           dest: '.'
+        },
+        {
+          src: 'node_modules/webextension-polyfill/dist/browser-polyfill.js',
+          dest: '.'
         }
       ]
     })
