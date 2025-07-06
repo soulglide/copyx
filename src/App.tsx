@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, ChangeEvent, useMemo } from 'react';
 import './App.css';
+import packageJson from '../package.json';
 
 interface Snippet {
   id: string; // Add unique ID
@@ -206,6 +207,7 @@ const App: React.FC = () => {
     <div className="container">
       <div className="title-container">
         <h1>CopyX Snippet Manager</h1>
+        <span className="version-info">v{packageJson.version}</span>
         <img src="/icon.png" alt="CopyX Icon" className="app-icon" />
       </div>
       {feedbackMessage && <div className="feedback-message">{feedbackMessage}</div>}
