@@ -12,7 +12,8 @@
     "tabs"
   ],
   "background": {
-    "scripts": ["browser-polyfill.js", "background.js"]
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -25,10 +26,5 @@
   },
   "icons": {
     "128": "icon.png"
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "copyx@example.com"
-    }
   }
 }

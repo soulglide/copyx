@@ -8,11 +8,12 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'public/*',
-          dest: '.'
+          src: 'public/manifest.chrome.json', // Chrome専用マニフェストを直接指定
+          dest: '.',
+          rename: 'manifest.json'
         },
         {
-          src: 'node_modules/webextension-polyfill/dist/browser-polyfill.js',
+          src: 'public/icon.png',
           dest: '.'
         }
       ]
@@ -23,13 +24,13 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'index.html',
-        background: 'src/background.ts',
-        content: 'src/content.ts'
+        background: 'src/background.chrome.ts', // Chrome専用バックグラウンドスクリプトを直接指定
+        content: 'src/content.chrome.ts' // Chrome専用コンテンツスクリプトを直接指定
       },
       output: {
         entryFileNames: '[name].js',
-        chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]'
+        chunkFileNames: 'assets/vendor.js',
+        assetFileNames: 'assets/[name].[ext]'
       }
     }
   }
